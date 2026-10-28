@@ -1,0 +1,3 @@
+Run: python -B backend/server.py
+Open: http://127.0.0.1:8765
+Windows FPGA access requires Npcap and an elevated terminal.

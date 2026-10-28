@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>stock_151 · Trading simulator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="preset-mode">
+  <main>
+    <div class="round-bar">
+      <div class="controls">
+        <div class="profile-only">
+          <label for="sigma">Standard deviation <span>($ per 0.4 s)</span></label>
+          <div class="input-row"><input id="sigma" type="number" min="0" max="10" step="0.1" value="0.5" required><span id="sigma-note">2.5 updates / second · 60 second round</span></div>
+        </div>
+        <p id="error" role="alert"></p>
+        <div><label for="seed">Round seed</label><input id="seed" type="number" min="0" max="4294967295" step="1" value="1" required></div>
+        <div class="profile-only"><label for="processing"><span></span></label><input id="processing" type="number" min="0" max="100000" step="0.001" value="1" required></div>
+        <div class="profile-only"><label for="model-mode"></label><select id="model-mode"><option value="accelerator"></option><option value="legacy-full"></option><option value="legacy-ckpt2"></option><option value="cycle"></option><option value="fpga"></option></select></div>
+        <div><label for="board-link">Board link <span>(FPGA board)</span></label><input id="board-link" type="text" placeholder="en7, \Device\NPF_{...}, or udp:127.0.0.1:9151" value=""></div>
+        <div class="round-buttons"><button id="start" disabled>Start round</button><button id="stop" class="secondary" type="button" disabled>Stop round</button></div>
+      </div>
+      <div class="clock"><span class="eyebrow">TIME REMAINING</span><strong id="timer">01:00</strong></div>
+    </div>
+    <section class="bots" aria-labelledby="market-heading">
+      <div class="bots-heading"><h2 id="market-heading">Market and link</h2><p id="pace-hint" class="muted" role="status"></p></div>
+      <div class="pace-grid">
+        <div class="profile-only"><label for="pace"></label><select id="pace"><option value="standard"></option><option value="fast"></option><option value="very-fast"></option><option value="custom"></option></select></div>
+        <div class="profile-only"><label for="price-interval"><span></span></label><input id="price-interval" type="number" min="1" max="60000" step="0.002" value="20" required></div>
+        <div class="profile-only"><label for="customer-interval"><span></span></label><input id="customer-interval" type="number" min="1" max="60000" step="0.002" placeholder="auto"></div>
+        <div class="profile-only"><label for="heartbeat-interval"><span></span></label><input id="heartbeat-interval" type="number" min="1" max="60000" step="0.001" value="10" required></div>
+        <div class="profile-only"><label for="order-budget"><span></span></label><input id="order-budget" type="number" min="0" max="255" step="1" value="64" required></div>
+        <div class="profile-only"><label for="downlink"><span></span></label><input id="downlink" type="number" min="1" max="100" step="1" value="100" required></div>
+        <div><label for="link-latency">Link latency <span>(µs each way, every player)</span></label><input id="link-latency" type="number" min="0" max="100000" step="0.001" value="500" required></div>
+        <div id="link-measured" class="link-measured" hidden><span id="link-measured-value" class="muted"></span><button id="use-link-measured" class="secondary" type="button">Use</button></div>
+        <div class="pace-check profile-only"><label><input id="feed-queue" type="checkbox" checked></label></div>
+        <div class="pace-check profile-only"><label><input id="board-16bit" type="checkbox" checked></label></div>
+        <div class="pace-check profile-only"><label><input id="fair-snipers" type="checkbox" checked></label></div>
+        <div class="profile-only"><label for="run-mode"></label><select id="run-mode"><option value="lockstep"></option><option value="realtime" selected></option></select></div>
+        <div class="profile-only"><label for="window"><span></span></label><input id="window" type="number" min="0" max="10000000" step="1" placeholder="∞"></div>
+      </div>
+      <p id="market-profile-note" class="muted">Choose a market preset; its volatility and bot settings are fixed. Rounds use 20 ms price updates, 10 ms heartbeats, a 64-order budget, 100% downlink, 16-bit heartbeats, and real-time execution. The link latency you set applies to every player alike.</p>
+    </section>
+    <section class="bots" aria-labelledby="bots-heading">
+      <div class="bots-heading"><h2 id="bots-heading">Bots</h2></div>
+      <div class="preset-row"><label for="scenario">Market</label><select id="scenario"><option value="">Load a market preset…</option></select><span id="scenario-description" class="muted"></span></div>
+      <div id="bots" class="bot-list"></div>
+      <button id="add-bot" class="secondary" type="button">Add bot</button>
+    </section>
+    <section class="bots profile-only" aria-labelledby="boards-heading">
+      <div class="bots-heading"><h2 id="boards-heading">Other boards</h2></div>
+      <div id="boards" class="bot-list"></div>
+      <button id="add-board" class="secondary" type="button">Add board</button>
+    </section>
+    <p id="latency-status" class="muted latency" role="status"></p>
+    <div id="participants-wrap" class="participants" hidden>
+      <table><thead><tr><th>FPGA participant</th><th>pid</th><th>State</th><th>Frames</th><th>Tag median</th><th>Round trip median</th></tr></thead><tbody id="participants"></tbody></table>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Simulator views">
+      <button id="price-tab" role="tab" aria-selected="true" aria-controls="price-panel">Stock price</button>
+      <button id="book-tab" role="tab" aria-selected="false" aria-controls="book-panel" tabindex="-1">Order book</button>
+      <button id="leaderboard-tab" role="tab" aria-selected="false" aria-controls="leaderboard-panel" tabindex="-1">Leaderboard</button>
+    </nav>
+    <section id="price-panel" class="terminal" role="tabpanel" aria-labelledby="price-tab">
+      <div class="stock-header"><div><div class="stock-name"><h2>stock_151</h2><span id="status" class="status" role="status">Ready</span></div><p class="muted">Simulated stock / USD</p></div></div>
+      <div class="quote"><strong id="price">$100.00</strong><span id="change">+$0.00 (0.00%)</span></div>
+      <div class="chart-wrap"><canvas id="chart" role="img" aria-label="stock_151 price chart over a 60-second round"></canvas></div>
+      <div class="stats"><div><span>OPEN</span><strong>$100.00</strong></div><div><span>ROUND HIGH</span><strong id="high">$100.00</strong></div><div><span>ROUND LOW</span><strong id="low">$100.00</strong></div><div><span>UPDATES</span><strong id="ticks">0 / 150</strong></div></div>
+
+    </section>
+    <section id="book-panel" class="terminal" role="tabpanel" aria-labelledby="book-tab" hidden>
+      <div class="stock-header">
+        <div><h2>stock_151</h2><p class="muted"><span class="preset-only">The board trades against market makers, arbitrageurs, institutions, and customer order flow.</span></p><p id="golden-status" class="muted" role="status">Connecting to FPGA board…</p></div>
+        <span id="bot-status" class="status" role="status">Ready</span>
+      </div>
+      <div class="book-toolbar">
+        <span class="muted">Reference: <strong id="reference-price">$100.00</strong> · Last fill: <strong id="last-fill">—</strong> · Volume: <strong id="volume">0</strong></span>
+      </div>
+      <p class="book-note muted">Rounds last 60 seconds. FPGA orders remain until canceled; other traders’ orders expire after 8 seconds. All orders are canceled at the close.</p>
+      <div class="book-columns">
+        <section><h3 class="buy-text">Buy orders <span id="buy-count">(0)</span></h3><div class="table-scroll"><table><thead><tr><th>Price</th><th>Shares</th><th>Bot</th><th>Order</th></tr></thead><tbody id="buy-orders"></tbody></table></div></section>
+        <section><h3 class="sell-text">Sell orders <span id="sell-count">(0)</span></h3><div class="table-scroll"><table><thead><tr><th>Price</th><th>Shares</th><th>Bot</th><th>Order</th></tr></thead><tbody id="sell-orders"></tbody></table></div></section>
+      </div>
+      <section class="book-log"><div class="log-heading"><h3>Order book log</h3><button id="export-log" class="secondary">Download full log</button></div>
+        <p class="muted">USER = FPGA requests. ORDER, FILL, CANCEL and REJECT describe exchange actions.</p>
+        <p class="muted">Newest first. Showing the latest 200 events; download includes all events in this round. Quantities are shares.</p>
+        <div class="log-scroll"><table><thead><tr><th>Time</th><th>Event</th><th>Details</th></tr></thead><tbody id="order-log"></tbody></table></div>
+      </section>
+    </section>
+    <section id="leaderboard-panel" class="terminal" role="tabpanel" aria-labelledby="leaderboard-tab" hidden>
+      <div class="stock-header"><h2>Leaderboard</h2><span id="pnl-status" class="status" role="status">Ready</span></div>
+      <p class="book-note muted">P&amp;L = trade cash + inventory &times; fair price. All players start at zero; short positions are allowed. Picked off = shares of a player's resting quotes a sniper took. The lazy maker is listed last and unranked.</p>
+      <p class="book-note">stock_151 fair price: <strong id="pnl-fair">$100.00</strong></p>
+      <div class="leaderboard-scroll"><table><thead><tr><th>Rank</th><th>Player</th><th>Trade cash</th><th>Inventory</th><th>Shares traded</th><th>Picked off</th><th>P&amp;L</th></tr></thead><tbody id="leaderboard"></tbody></table></div>
+    </section>
+  </main>
+  <script src="app.js"></script><script src="market-ui.js"></script>
+</body>
+</html>
